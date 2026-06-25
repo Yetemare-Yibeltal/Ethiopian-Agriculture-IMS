@@ -1,0 +1,17 @@
+#!/bin/sh
+commit_msg=$(cat "$1")
+min_length=3
+max_length=72
+if [ -z "$commit_msg" ]; then
+  echo "❌ Commit message cannot be empty."
+  exit 1
+fi
+if [ ${#commit_msg} -lt $min_length ]; then
+  echo "❌ Commit message too short. Minimum $min_length characters."
+  exit 1
+fi
+if [ ${#commit_msg} -gt $max_length ]; then
+  echo "❌ Commit message too long. Maximum $max_length characters."
+  exit 1
+fi
+echo "✅ Commit message looks good!"

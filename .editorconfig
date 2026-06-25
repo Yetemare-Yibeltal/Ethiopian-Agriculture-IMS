@@ -1,0 +1,50 @@
+# EditorConfig — https://editorconfig.org
+root = true
+
+# ─── All files ──────────────────────────────────────────
+[*]
+charset = utf-8
+indent_style = space
+indent_size = 2
+end_of_line = lf
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# ─── TypeScript / JavaScript ────────────────────────────
+[*.{ts,tsx,js,jsx}]
+indent_size = 2
+quote_type = single
+
+# ─── JSON ───────────────────────────────────────────────
+[*.json]
+indent_size = 2
+
+# ─── CSS / SCSS ─────────────────────────────────────────
+[*.{css,scss}]
+indent_size = 2
+
+# ─── Markdown ───────────────────────────────────────────
+[*.md]
+trim_trailing_whitespace = false
+indent_size = 2
+
+# ─── YAML ───────────────────────────────────────────────
+[*.{yml,yaml}]
+indent_size = 2
+
+# ─── Prisma ─────────────────────────────────────────────
+[*.prisma]
+indent_size = 2
+
+# ─── Shell scripts ──────────────────────────────────────
+[*.sh]
+end_of_line = lf
+indent_size = 2
+
+# ─── Dockerfile ─────────────────────────────────────────
+[Dockerfile*]
+indent_size = 2
+
+# ─── Nginx config ───────────────────────────────────────
+[*.conf]
+indent_size = 2

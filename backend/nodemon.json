@@ -1,0 +1,12 @@
+{
+  "watch": ["src", "prisma/schema.prisma"],
+  "ext": "ts,json,prisma",
+  "ignore": ["src/tests/**", "dist/**", "node_modules/**", "coverage/**", "*.spec.ts", "*.test.ts"],
+  "exec": "ts-node -r tsconfig-paths/register src/index.ts",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 500,
+  "verbose": true,
+  "colours": true
+}

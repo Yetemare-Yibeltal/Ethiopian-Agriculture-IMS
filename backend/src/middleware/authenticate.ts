@@ -100,5 +100,4 @@ export const authenticate = asyncHandler(
     next();
   },
 );
-
 export default authenticate;

@@ -5,27 +5,32 @@ import { connectDB, disconnectDB } from './lib/db';
 import { logger } from './lib/logger';
 import { validateSecrets } from './lib/secrets';
 
-// ─── Track server state ───────────────────────────────────
+// ─── Track shutdown state ─────────────────────────────────
 let isShuttingDown = false;
+let server: ReturnType<typeof app.listen>;
 
-// ─── Graceful shutdown handler ────────────────────────────
+// Declare app at module level so gracefulShutdown can access it
+// eslint-disable-next-line prefer-const
+let app = createApp();
+
+// ─── Graceful shutdown ────────────────────────────────────
 const gracefulShutdown = async (signal: string): Promise<void> => {
   if (isShuttingDown) {
-    logger.warn('Shutdown already in progress...');
+    logger.warn('Shutdown already in progress — ignoring signal');
     return;
   }
 
   isShuttingDown = true;
-  logger.info(`\n🛑 Received ${signal}. Starting graceful shutdown...`);
+  logger.info(`\n🛑 ${signal} received — starting graceful shutdown...`);
 
-  // Give existing requests 30 seconds to complete
-  const shutdownTimeout = setTimeout(() => {
-    logger.error('⚠️  Graceful shutdown timed out after 30s. Forcing exit.');
+  // Force exit after 30 seconds if shutdown hangs
+  const forceExitTimer = setTimeout(() => {
+    logger.error('❌ Graceful shutdown timed out after 30s — forcing exit');
     process.exit(1);
   }, 30000);
 
   try {
-    // Stop accepting new connections
+    // 1. Stop accepting new HTTP connections
     if (server) {
       await new Promise<void>((resolve, reject) => {
         server.close((err) => {
@@ -36,35 +41,36 @@ const gracefulShutdown = async (signal: string): Promise<void> => {
           }
         });
       });
-      logger.info('✅ HTTP server closed — no longer accepting connections');
+      logger.info('✅ HTTP server closed');
     }
 
-    // Disconnect from PostgreSQL
+    // 2. Disconnect from PostgreSQL
     await disconnectDB();
     logger.info('✅ PostgreSQL disconnected');
 
-    // Disconnect from Redis
+    // 3. Disconnect from Redis
     await disconnectRedis();
     logger.info('✅ Redis disconnected');
 
-    clearTimeout(shutdownTimeout);
-    logger.info('✅ Graceful shutdown complete');
+    clearTimeout(forceExitTimer);
+    logger.info('✅ Graceful shutdown complete — goodbye!');
     process.exit(0);
   } catch (error) {
     logger.error('❌ Error during graceful shutdown:', error);
-    clearTimeout(shutdownTimeout);
+    clearTimeout(forceExitTimer);
     process.exit(1);
   }
 };
 
 // ─── Handle uncaught errors ───────────────────────────────
 process.on('uncaughtException', (error: Error) => {
-  logger.error('💥 Uncaught Exception:', {
+  logger.error('💥 Uncaught Exception — shutting down:', {
+    name: error.name,
     message: error.message,
     stack: error.stack,
-    name: error.name,
   });
-  // Exit immediately — uncaught exceptions leave app in undefined state
+  // Uncaught exceptions leave the app in undefined state
+  // Must exit immediately
   process.exit(1);
 });
 
@@ -72,94 +78,99 @@ process.on('unhandledRejection', (reason: unknown) => {
   logger.error('💥 Unhandled Promise Rejection:', {
     reason:
       reason instanceof Error
-        ? {
-            message: reason.message,
-            stack: reason.stack,
-          }
+        ? { message: reason.message, stack: reason.stack }
         : reason,
   });
-  // Exit after graceful shutdown attempt
-  gracefulShutdown('unhandledRejection').catch(() => process.exit(1));
+  gracefulShutdown('unhandledRejection').catch(() => {
+    process.exit(1);
+  });
 });
 
-// ─── Handle shutdown signals ──────────────────────────────
+// ─── OS shutdown signals ──────────────────────────────────
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon restart
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
-// ─── Bootstrap server ─────────────────────────────────────
-let server: ReturnType<typeof app.listen>;
-
+// ─── Bootstrap function ───────────────────────────────────
 const bootstrap = async (): Promise<void> => {
   try {
-    logger.info('🚀 Starting AgroEthiopia MIS Backend...');
-    logger.info(`   Environment: ${config.NODE_ENV}`);
-    logger.info(`   Port: ${config.PORT}`);
-    logger.info(`   API Prefix: ${config.API_PREFIX}`);
+    logger.info('');
+    logger.info('🌾 Starting AgroEthiopia MIS Backend...');
+    logger.info(`   Environment : ${config.NODE_ENV}`);
+    logger.info(`   Port        : ${config.PORT}`);
+    logger.info(`   API Prefix  : ${config.API_PREFIX}`);
+    logger.info('');
 
-    // ── Step 1: Validate secrets ────────────────────────
-    logger.info('Step 1/4: Validating secrets...');
+    // ── Step 1: Validate all secrets ─────────────────────
+    logger.info('📋 Step 1/4: Validating environment secrets...');
     validateSecrets();
+    logger.info('✅ Step 1/4: Secrets validated');
 
-    // ── Step 2: Connect to PostgreSQL ───────────────────
-    logger.info('Step 2/4: Connecting to PostgreSQL...');
+    // ── Step 2: Connect to PostgreSQL ─────────────────────
+    logger.info('🗄️  Step 2/4: Connecting to PostgreSQL...');
     await connectDB();
+    logger.info('✅ Step 2/4: PostgreSQL connected');
 
-    // ── Step 3: Connect to Redis ─────────────────────────
-    logger.info('Step 3/4: Connecting to Redis...');
+    // ── Step 3: Connect to Redis ──────────────────────────
+    logger.info('⚡ Step 3/4: Connecting to Redis...');
     try {
-      await redis.ping();
-      logger.info('✅ Redis: connected successfully');
+      const pingResult = await redis.ping();
+      if (pingResult === 'PONG') {
+        logger.info('✅ Step 3/4: Redis connected');
+      } else {
+        logger.warn('⚠️  Step 3/4: Redis ping returned unexpected response');
+      }
     } catch (redisError) {
       logger.warn(
-        '⚠️  Redis connection failed — caching and queues unavailable',
+        '⚠️  Step 3/4: Redis unavailable — caching and queues disabled',
         redisError,
       );
-      // Do not exit — Redis is important but not critical for basic operation
+      // Continue without Redis — app still works but without caching
     }
 
-    // ── Step 4: Start HTTP server ────────────────────────
-    logger.info('Step 4/4: Starting HTTP server...');
-    const app = createApp();
+    // ── Step 4: Start HTTP server ─────────────────────────
+    logger.info('🌐 Step 4/4: Starting HTTP server...');
+    app = createApp();
 
     server = app.listen(config.PORT, () => {
       logger.info('');
-      logger.info('═══════════════════════════════════════════════');
-      logger.info('  🌾 AgroEthiopia MIS Backend is running!');
-      logger.info('═══════════════════════════════════════════════');
-      logger.info(`  Environment : ${config.NODE_ENV}`);
-      logger.info(`  Backend URL : ${config.BACKEND_URL}`);
-      logger.info(`  API Base    : ${config.BACKEND_URL}${config.API_PREFIX}`);
-      logger.info(`  Health      : ${config.BACKEND_URL}/health`);
-      logger.info(`  Frontend    : ${config.FRONTEND_URL}`);
-      logger.info('═══════════════════════════════════════════════');
+      logger.info('╔═══════════════════════════════════════════════╗');
+      logger.info('║   🌾  AgroEthiopia MIS Backend Running!        ║');
+      logger.info('╠═══════════════════════════════════════════════╣');
+      logger.info(`║   Env     : ${config.NODE_ENV.padEnd(34)}║`);
+      logger.info(`║   URL     : ${config.BACKEND_URL.padEnd(34)}║`);
+      logger.info(
+        `║   API     : ${(config.BACKEND_URL + config.API_PREFIX).padEnd(34)}║`,
+      );
+      logger.info(
+        `║   Health  : ${(config.BACKEND_URL + '/health').padEnd(34)}║`,
+      );
+      logger.info('╚═══════════════════════════════════════════════╝');
       logger.info('');
     });
 
-    // Handle server errors
+    // Handle port already in use error
     server.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
         logger.error(
           `❌ Port ${config.PORT} is already in use.\n` +
-            `   Please stop the other process or change BACKEND_PORT in .env`,
+            `   Stop the other process or change BACKEND_PORT in .env`,
         );
       } else {
-        logger.error('❌ Server error:', error);
+        logger.error('❌ HTTP server error:', error);
       }
       process.exit(1);
     });
 
-    // Set server timeout — 60 seconds
+    // Set server timeouts
     server.timeout = 60000;
-
-    // Set keep-alive timeout
     server.keepAliveTimeout = 65000;
     server.headersTimeout = 66000;
   } catch (error) {
-    logger.error('❌ Failed to start server:', error);
+    logger.error('❌ Failed to start AgroEthiopia MIS Backend:', error);
     process.exit(1);
   }
 };
 
-// ─── Start the server ─────────────────────────────────────
+// ─── Start the application ────────────────────────────────
 bootstrap();

@@ -32,13 +32,12 @@ import { sanitizeMiddleware } from './middleware/sanitize';
 import { xssMiddleware } from './middleware/xss';
 import { apiRouter } from './routes/index';
 
-// ─── Format uptime helper ─────────────────────────────────
+// ─── Format uptime into human readable string ─────────────
 const formatUptime = (seconds: number): string => {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-
   const parts: string[] = [];
   if (days > 0) {
     parts.push(`${days}d`);
@@ -50,48 +49,48 @@ const formatUptime = (seconds: number): string => {
     parts.push(`${minutes}m`);
   }
   parts.push(`${secs}s`);
-
   return parts.join(' ');
 };
 
-// ─── Create Express application ───────────────────────────
+// ─── Create and configure Express application ─────────────
 export const createApp = (): Application => {
   const app = express();
 
-  // ─── Trust proxy ──────────────────────────────────────
-  // Required for accurate IP detection behind Nginx reverse proxy
+  // ─── Trust proxy ────────────────────────────────────────
+  // Required for accurate IP detection behind Nginx
   app.set('trust proxy', 1);
 
-  // ─── Disable fingerprinting ───────────────────────────
+  // ─── Disable fingerprinting ──────────────────────────────
   app.disable('x-powered-by');
   app.disable('etag');
 
-  // ─── Security middleware ──────────────────────────────
-  // MUST be first — sets security headers on every response
+  // ─── Security headers ────────────────────────────────────
+  // Must be first — applied to every response
   app.use(helmetMiddleware);
   app.use(additionalSecurityHeaders);
 
-  // ─── CORS ─────────────────────────────────────────────
-  // Must come before other middleware to handle preflight
+  // ─── CORS ────────────────────────────────────────────────
+  // Must come before other middleware for preflight handling
   app.use(cors(corsOptions));
 
-  // ─── IP blocking ──────────────────────────────────────
-  // Block banned IPs before any processing
+  // ─── IP blocking ─────────────────────────────────────────
+  // Reject banned IPs before any processing
   app.use(ipBlockMiddleware);
 
-  // ─── Compression ──────────────────────────────────────
+  // ─── Response compression ────────────────────────────────
   app.use(compressionMiddleware);
   app.use(responseTimeMiddleware);
 
-  // ─── Request logging ──────────────────────────────────
+  // ─── HTTP request logging ────────────────────────────────
   app.use(morganLogger);
   app.use(requestLogger);
 
-  // ─── Rate limiting ────────────────────────────────────
+  // ─── Rate limiting ───────────────────────────────────────
+  // General limit on all routes — stricter limit on auth routes
   app.use(generalLimiter);
 
-  // ─── Body parsers ─────────────────────────────────────
-  // Parse JSON bodies — 10mb limit for bulk imports
+  // ─── Body parsers ────────────────────────────────────────
+  // Parse JSON request bodies — 10mb for bulk imports
   app.use(
     express.json({
       limit: '10mb',
@@ -100,7 +99,7 @@ export const createApp = (): Application => {
     }),
   );
 
-  // Parse URL-encoded bodies — for form submissions
+  // Parse URL-encoded form data
   app.use(
     express.urlencoded({
       extended: true,
@@ -108,20 +107,21 @@ export const createApp = (): Application => {
     }),
   );
 
-  // Parse signed cookies — used for JWT httpOnly cookies
+  // Parse signed cookies — used for JWT httpOnly auth cookies
   app.use(cookieParser(config.COOKIE_SECRET));
 
-  // ─── Input sanitization ───────────────────────────────
-  // MUST come after body parsers
+  // ─── Input sanitization ──────────────────────────────────
+  // Must come AFTER body parsers
+  // Cleans all incoming request data from XSS and injection
   app.use(sanitizeMiddleware);
   app.use(xssMiddleware);
 
-  // ─── Static file serving ──────────────────────────────
+  // ─── Static file serving ─────────────────────────────────
   // Serve uploaded farmer photos publicly
   app.use(
     '/uploads',
     (req: Request, _res: Response, next: NextFunction) => {
-      logger.info(`Static file request: ${req.path}`);
+      logger.info(`Static file accessed: ${req.path}`);
       next();
     },
     express.static(path.join(process.cwd(), config.UPLOAD_DIR), {
@@ -138,7 +138,7 @@ export const createApp = (): Application => {
     }),
   );
 
-  // Serve generated export files (PDF and Excel)
+  // Serve generated PDF and Excel export files
   app.use(
     '/exports',
     express.static(path.join(process.cwd(), config.EXPORT_DIR), {
@@ -151,7 +151,7 @@ export const createApp = (): Application => {
     }),
   );
 
-  // ─── Root endpoint ────────────────────────────────────
+  // ─── Root endpoint ───────────────────────────────────────
   app.get('/', (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
@@ -164,7 +164,7 @@ export const createApp = (): Application => {
     });
   });
 
-  // ─── Ping endpoint ────────────────────────────────────
+  // ─── Ping endpoint ───────────────────────────────────────
   app.get('/ping', (_req: Request, res: Response) => {
     res.status(200).json({
       success: true,
@@ -173,8 +173,8 @@ export const createApp = (): Application => {
     });
   });
 
-  // ─── Full health check endpoint ───────────────────────
-  // Checks database and Redis connectivity
+  // ─── Full health check endpoint ──────────────────────────
+  // Checks PostgreSQL and Redis connectivity
   app.get('/health', async (_req: Request, res: Response) => {
     const dbHealth = await checkDBHealth();
 
@@ -203,12 +203,12 @@ export const createApp = (): Application => {
       checks: {
         database: {
           healthy: dbHealth.healthy,
-          latencyMs: dbHealth.latencyMs,
-          error: dbHealth.error || null,
+          latencyMs: dbHealth.latencyMs ?? null,
+          error: dbHealth.error ?? null,
         },
         redis: {
           healthy: redisHealthy,
-          latencyMs: redisLatencyMs || null,
+          latencyMs: redisLatencyMs ?? null,
         },
         memory: {
           heapUsedMB: Math.round(memoryUsage.heapUsed / 1024 / 1024),
@@ -224,21 +224,20 @@ export const createApp = (): Application => {
     });
   });
 
-  // ─── Audit log middleware ─────────────────────────────
+  // ─── Audit log middleware ────────────────────────────────
   // Must come before API routes
   app.use(auditLogMiddleware);
 
-  // ─── API routes ───────────────────────────────────────
+  // ─── API routes ──────────────────────────────────────────
   // All API endpoints mounted under /api/v1
   app.use(config.API_PREFIX, apiRouter);
 
-  // ─── 404 handler ─────────────────────────────────────
-  // Must come after ALL routes
+  // ─── 404 handler ─────────────────────────────────────────
+  // Must come AFTER all routes
   app.use(notFound);
 
-  // ─── Global error handler ─────────────────────────────
-  // Must be the LAST middleware
-  // Express requires exactly 4 arguments for error handlers
+  // ─── Global error handler ────────────────────────────────
+  // Must be the VERY LAST middleware
   app.use(errorHandler);
 
   return app;

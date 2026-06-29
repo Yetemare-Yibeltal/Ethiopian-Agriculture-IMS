@@ -1,15 +1,15 @@
+import argon2 from 'argon2';
+import jwt from 'jsonwebtoken';
 import { Router } from 'express';
+import { z, ZodDate } from 'zod';
 
+import { config } from '../config/env';
 import { authenticate } from '../middleware/authenticate';
 import { authLimiter } from '../middleware/rateLimiter';
 import { asyncHandler } from '../lib/asyncHandler';
 import { db } from '../lib/db';
 import { ApiResponse } from '../lib/ApiResponse';
 import { ApiError } from '../lib/ApiError';
-import { config } from '../config/env';
-import argon2 from 'argon2';
-import jwt from 'jsonwebtoken';
-import { z } from 'zod';
 
 export const authRouter = Router();
 
@@ -70,7 +70,7 @@ const accessTokenCookieOptions = {
   httpOnly: true,
   secure: config.COOKIE_SECURE,
   sameSite: 'strict' as const,
-  maxAge: 15 * 60 * 1000, // 15 minutes
+  maxAge: 15 * 60 * 1000,
   domain: config.COOKIE_DOMAIN,
 };
 
@@ -78,9 +78,31 @@ const refreshTokenCookieOptions = {
   httpOnly: true,
   secure: config.COOKIE_SECURE,
   sameSite: 'strict' as const,
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  maxAge: 7 * 24 * 60 * 60 * 1000,
   domain: config.COOKIE_DOMAIN,
   path: '/api/v1/auth/refresh',
+};
+
+// ─── Helper: generate token pair ─────────────────────────
+const generateTokens = (
+  userId: string,
+  email: string,
+  role: string,
+  orgId: string | null,
+): { accessToken: string; refreshToken: string } => {
+  const accessToken = jwt.sign(
+    { userId, email, role, orgId },
+    config.JWT_ACCESS_SECRET as jwt.Secret,
+    { expiresIn: '15m' },
+  );
+
+  const refreshToken = jwt.sign(
+    { userId },
+    config.JWT_REFRESH_SECRET as jwt.Secret,
+    { expiresIn: '7d' },
+  );
+
+  return { accessToken, refreshToken };
 };
 
 // ─── POST /api/v1/auth/login ──────────────────────────────
@@ -88,7 +110,6 @@ authRouter.post(
   '/login',
   authLimiter,
   asyncHandler(async (req, res) => {
-    // Validate input
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       throw ApiError.badRequest('Validation failed', parsed.error.errors);
@@ -134,22 +155,12 @@ authRouter.post(
       throw ApiError.unauthorized('Invalid email or password');
     }
 
-    // Generate tokens
-    const accessToken = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-        orgId: user.orgId,
-      },
-      config.JWT_ACCESS_SECRET,
-      { expiresIn: config.JWT_ACCESS_EXPIRES_IN },
-    );
-
-    const refreshToken = jwt.sign(
-      { userId: user.id },
-      config.JWT_REFRESH_SECRET,
-      { expiresIn: config.JWT_REFRESH_EXPIRES_IN },
+    // Generate access and refresh tokens
+    const { accessToken, refreshToken } = generateTokens(
+      user.id,
+      user.email,
+      user.role,
+      user.orgId,
     );
 
     // Store refresh token in database
@@ -161,7 +172,7 @@ authRouter.post(
       },
     });
 
-    // Update last login
+    // Update last login timestamp
     await db.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -171,7 +182,6 @@ authRouter.post(
     res.cookie('accessToken', accessToken, accessTokenCookieOptions);
     res.cookie('refreshToken', refreshToken, refreshTokenCookieOptions);
 
-    // Return user data (never return password)
     return ApiResponse.ok(res, 'Login successful', {
       user: {
         id: user.id,
@@ -188,12 +198,11 @@ authRouter.post(
 );
 
 // ─── POST /api/v1/auth/register ───────────────────────────
-// Only Super Admin can register new users
+// Only authenticated Super Admins can register new users
 authRouter.post(
   '/register',
   authenticate,
   asyncHandler(async (req, res) => {
-    // Validate input
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       throw ApiError.badRequest('Validation failed', parsed.error.errors);
@@ -210,7 +219,7 @@ authRouter.post(
       throw ApiError.conflict('A user with this email address already exists.');
     }
 
-    // Hash password with argon2
+    // Hash password with argon2id
     const hashedPassword = await argon2.hash(password, {
       type: argon2.argon2id,
       memoryCost: 65536,
@@ -218,14 +227,14 @@ authRouter.post(
       parallelism: 4,
     });
 
-    // Create user
+    // Create user in database
     const newUser = await db.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
         role,
-        orgId: orgId || null,
+        orgId: orgId ?? null,
         language,
         isActive: true,
       },
@@ -250,7 +259,7 @@ authRouter.post(
   '/logout',
   authenticate,
   asyncHandler(async (req, res) => {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken as string | undefined;
 
     // Delete refresh token from database if it exists
     if (refreshToken) {
@@ -259,11 +268,11 @@ authRouter.post(
           where: { token: refreshToken },
         })
         .catch(() => {
-          // Ignore error — token may already be expired
+          // Ignore error — token may already be expired or deleted
         });
     }
 
-    // Clear cookies
+    // Clear access token cookie
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: config.COOKIE_SECURE,
@@ -271,6 +280,7 @@ authRouter.post(
       domain: config.COOKIE_DOMAIN,
     });
 
+    // Clear refresh token cookie
     res.clearCookie('refreshToken', {
       httpOnly: true,
       secure: config.COOKIE_SECURE,
@@ -287,7 +297,7 @@ authRouter.post(
 authRouter.post(
   '/refresh',
   asyncHandler(async (req, res) => {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken = req.cookies?.refreshToken as string | undefined;
 
     if (!refreshToken) {
       throw ApiError.unauthorized(
@@ -295,19 +305,20 @@ authRouter.post(
       );
     }
 
-    // Verify refresh token
+    // Verify refresh token signature and expiry
     let decoded: { userId: string };
     try {
-      decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as {
-        userId: string;
-      };
+      decoded = jwt.verify(
+        refreshToken,
+        config.JWT_REFRESH_SECRET as jwt.Secret,
+      ) as { userId: string };
     } catch {
       throw ApiError.unauthorized(
         'Invalid or expired refresh token. Please log in again.',
       );
     }
 
-    // Check token exists in database
+    // Check token exists in database and is not expired
     const storedToken = await db.refreshToken.findFirst({
       where: {
         token: refreshToken,
@@ -322,7 +333,7 @@ authRouter.post(
       );
     }
 
-    // Get user
+    // Get current user
     const user = await db.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -340,26 +351,11 @@ authRouter.post(
       throw ApiError.unauthorized('User account not found or deactivated.');
     }
 
-    // Generate new access token
-    const newAccessToken = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-        orgId: user.orgId,
-      },
-      config.JWT_ACCESS_SECRET,
-      { expiresIn: config.JWT_ACCESS_EXPIRES_IN },
-    );
+    // Generate new token pair
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      generateTokens(user.id, user.email, user.role, user.orgId);
 
-    // Rotate refresh token
-    const newRefreshToken = jwt.sign(
-      { userId: user.id },
-      config.JWT_REFRESH_SECRET,
-      { expiresIn: config.JWT_REFRESH_EXPIRES_IN },
-    );
-
-    // Delete old refresh token and create new one
+    // Rotate refresh token — delete old, create new
     await db.refreshToken.delete({
       where: { id: storedToken.id },
     });
@@ -372,7 +368,7 @@ authRouter.post(
       },
     });
 
-    // Set new cookies
+    // Set new tokens in cookies
     res.cookie('accessToken', newAccessToken, accessTokenCookieOptions);
     res.cookie('refreshToken', newRefreshToken, refreshTokenCookieOptions);
 
@@ -387,8 +383,10 @@ authRouter.get(
   '/me',
   authenticate,
   asyncHandler(async (req, res) => {
+    const userId = req.user?.id ?? '';
+
     const user = await db.user.findUnique({
-      where: { id: req.user?.id ?? '' },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -422,17 +420,17 @@ authRouter.put(
   '/change-password',
   authenticate,
   asyncHandler(async (req, res) => {
-    // Validate input
     const parsed = changePasswordSchema.safeParse(req.body);
     if (!parsed.success) {
       throw ApiError.badRequest('Validation failed', parsed.error.errors);
     }
 
     const { currentPassword, newPassword } = parsed.data;
+    const userId = req.user?.id ?? '';
 
-    // Get user with password
+    // Get user with hashed password
     const user = await db.user.findUnique({
-      where: { id: req.user?.id ?? '' },
+      where: { id: userId },
       select: { id: true, password: true },
     });
 
@@ -440,7 +438,7 @@ authRouter.put(
       throw ApiError.notFound('User');
     }
 
-    // Verify current password
+    // Verify current password is correct
     const isCurrentPasswordValid = await argon2.verify(
       user.password,
       currentPassword,
@@ -450,7 +448,7 @@ authRouter.put(
       throw ApiError.badRequest('Current password is incorrect');
     }
 
-    // Check new password is different from current
+    // Ensure new password is different from current
     const isSamePassword = await argon2.verify(user.password, newPassword);
 
     if (isSamePassword) {
@@ -467,18 +465,18 @@ authRouter.put(
       parallelism: 4,
     });
 
-    // Update password in database
-    await db.user.update({
-      where: { id: user.id },
-      data: { password: hashedNewPassword },
-    });
+    // Update password and revoke all sessions
+    await Promise.all([
+      db.user.update({
+        where: { id: user.id },
+        data: { password: hashedNewPassword },
+      }),
+      db.refreshToken.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
 
-    // Revoke all refresh tokens — force re-login on all devices
-    await db.refreshToken.deleteMany({
-      where: { userId: user.id },
-    });
-
-    // Clear cookies
+    // Clear auth cookies — force re-login
     res.clearCookie('accessToken', {
       httpOnly: true,
       secure: config.COOKIE_SECURE,
@@ -503,3 +501,4 @@ authRouter.put(
 );
 
 export default authRouter;
+ZodDate;

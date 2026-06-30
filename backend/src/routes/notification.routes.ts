@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 
-import { authenticate } from '../middleware/authenticate';
+import {
+  authenticate,
+  type AuthenticatedRequest,
+} from '../middleware/authenticate';
 import { authorize, UserRole } from '../middleware/authorize';
 import { asyncHandler } from '../lib/asyncHandler';
 import { ApiResponse } from '../lib/ApiResponse';
@@ -15,7 +18,6 @@ export const notificationRouter = Router();
 notificationRouter.use(authenticate);
 
 // ─── GET /api/v1/notifications ───────────────────────────
-// Get all notifications for the current user
 notificationRouter.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -44,7 +46,8 @@ notificationRouter.get(
     }
 
     const { page, perPage, isRead, type } = parsed.data;
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const where = {
       userId,
@@ -70,6 +73,7 @@ notificationRouter.get(
           createdAt: true,
         },
       }),
+      db.notification.count({ where }),
     ]);
 
     return ApiResponse.paginated(
@@ -82,11 +86,11 @@ notificationRouter.get(
 );
 
 // ─── GET /api/v1/notifications/unread-count ──────────────
-// Get just the unread count — for polling by frontend bell
 notificationRouter.get(
   '/unread-count',
   asyncHandler(async (req, res) => {
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const count = await db.notification.count({
       where: { userId, isRead: false },
@@ -97,12 +101,12 @@ notificationRouter.get(
 );
 
 // ─── PATCH /api/v1/notifications/:id/read ────────────────
-// Mark a single notification as read
 notificationRouter.patch(
   '/:id/read',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const notification = await db.notification.findUnique({
       where: { id },
@@ -112,7 +116,6 @@ notificationRouter.patch(
       throw ApiError.notFound('Notification');
     }
 
-    // Users can only mark their own notifications as read
     if (notification.userId !== userId) {
       throw ApiError.forbidden(
         'You can only mark your own notifications as read.',
@@ -139,11 +142,11 @@ notificationRouter.patch(
 );
 
 // ─── PATCH /api/v1/notifications/read-all ────────────────
-// Mark all notifications as read for current user
 notificationRouter.patch(
   '/read-all',
   asyncHandler(async (req, res) => {
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const result = await db.notification.updateMany({
       where: { userId, isRead: false },
@@ -157,12 +160,12 @@ notificationRouter.patch(
 );
 
 // ─── DELETE /api/v1/notifications/:id ────────────────────
-// Delete a single notification
 notificationRouter.delete(
   '/:id',
   asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const notification = await db.notification.findUnique({
       where: { id },
@@ -183,11 +186,11 @@ notificationRouter.delete(
 );
 
 // ─── DELETE /api/v1/notifications/clear-all ──────────────
-// Delete all read notifications for current user
 notificationRouter.delete(
   '/clear-all',
   asyncHandler(async (req, res) => {
-    const userId = req.user?.id ?? '';
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.user?.id ?? '';
 
     const result = await db.notification.deleteMany({
       where: { userId, isRead: true },
@@ -200,7 +203,6 @@ notificationRouter.delete(
 );
 
 // ─── POST /api/v1/notifications/broadcast ────────────────
-// Send a notification to all users — Super Admin only
 notificationRouter.post(
   '/broadcast',
   authorize([UserRole.SUPER_ADMIN]),
@@ -245,7 +247,6 @@ notificationRouter.post(
 
     const { title, message, type, roleFilter } = parsed.data;
 
-    // Get target users
     const users = await db.user.findMany({
       where: {
         isActive: true,
@@ -258,10 +259,9 @@ notificationRouter.post(
       return ApiResponse.ok(res, 'No users found to notify', { sent: 0 });
     }
 
-    // Create notifications for all target users
     await db.notification.createMany({
-      data: users.map((user) => ({
-        userId: user.id,
+      data: users.map((u: { id: string }) => ({
+        userId: u.id,
         type,
         title,
         message,
@@ -278,7 +278,6 @@ notificationRouter.post(
 );
 
 // ─── GET /api/v1/notifications/admin/all ─────────────────
-// Get all notifications across all users — Super Admin only
 notificationRouter.get(
   '/admin/all',
   authorize([UserRole.SUPER_ADMIN]),

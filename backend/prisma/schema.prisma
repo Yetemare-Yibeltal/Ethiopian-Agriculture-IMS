@@ -131,31 +131,30 @@ enum NotificationType {
 // ─── User & Auth Models ───────────────────────────────────
 
 model User {
-  id           String    @id @default(cuid())
-  name         String
-  email        String    @unique
-  password     String
-  role         UserRole  @default(VIEWER)
-  language     String    @default("en")
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  email       String    @unique
+  password    String
+  role        UserRole  @default(VIEWER)
+  language    String    @default("en")
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  // Relations
   orgId        String?
   organization Organization? @relation(fields: [orgId], references: [id])
 
-  refreshTokens  RefreshToken[]
-  notifications  Notification[]
-  auditLogs      AuditLog[]
-  exportJobs     ExportJob[]
-
+  refreshTokens          RefreshToken[]
+  notifications          Notification[]
+  auditLogs              AuditLog[]
+  exportJobs             ExportJob[]
+  registeredFarmers      Farmer[]        @relation("RegisteredBy")
   duplicateFlagsReviewed DuplicateFlag[] @relation("ReviewedBy")
-  yieldReports   YieldReport[] @relation("SubmittedBy")
-  distributions  Distribution[] @relation("DistributedBy")
-  drawnZones     DrawnZone[]   @relation("CreatedBy")
-  systemSettings SystemSetting[] @relation("UpdatedBy")
+  yieldReports           YieldReport[]   @relation("SubmittedBy")
+  distributions          Distribution[]  @relation("DistributedBy")
+  drawnZones             DrawnZone[]     @relation("CreatedBy")
+  systemSettings         SystemSetting[] @relation("UpdatedBy")
 
   @@index([email])
   @@index([role])
@@ -181,21 +180,20 @@ model RefreshToken {
 // ─── Organization Models ──────────────────────────────────
 
 model Organization {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  type         OrgType
-  description  String?
-  website      String?
-  email        String?
-  phone        String?
-  address      String?
-  focusAreas   String[] @default([])
+  id            String   @id @default(cuid())
+  name          String   @unique
+  type          OrgType
+  description   String?
+  website       String?
+  email         String?
+  phone         String?
+  address       String?
+  focusAreas    String[] @default([])
   activeRegions String[] @default([])
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  // Relations
   users         User[]
   distributions Distribution[]
 
@@ -207,8 +205,8 @@ model Organization {
 // ─── Region Hierarchy Models ──────────────────────────────
 
 model Region {
-  id          String @id @default(cuid())
-  name        String @unique
+  id          String  @id @default(cuid())
+  name        String  @unique
   amharicName String?
 
   zones Zone[]
@@ -218,7 +216,7 @@ model Region {
 }
 
 model Zone {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   amharicName String?
 
@@ -233,7 +231,7 @@ model Zone {
 }
 
 model Woreda {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   amharicName String?
 
@@ -277,7 +275,7 @@ model Crop {
 
   farmerCrops  FarmerCrop[]
   yieldReports YieldReport[]
-  farmers      Farmer[]     @relation("PrimaryCrop")
+  farmers      Farmer[]      @relation("PrimaryCrop")
 
   @@index([category])
   @@map("crops")
@@ -317,22 +315,18 @@ model Farmer {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  // Location
   kebeleId String
   kebele   Kebele @relation(fields: [kebeleId], references: [id])
 
-  // Primary crop
   primaryCropId String?
   primaryCrop   Crop?   @relation("PrimaryCrop", fields: [primaryCropId], references: [id])
 
-  // Who registered this farmer
   registeredById String
   registeredBy   User   @relation("RegisteredBy", fields: [registeredById], references: [id])
 
-  // Relations
-  farmerCrops   FarmerCrop[]
-  yieldReports  YieldReport[]
-  distributions Distribution[]
+  farmerCrops     FarmerCrop[]
+  yieldReports    YieldReport[]
+  distributions   Distribution[]
   duplicateFlags1 DuplicateFlag[] @relation("Farmer1")
   duplicateFlags2 DuplicateFlag[] @relation("Farmer2")
 
@@ -377,8 +371,9 @@ model DuplicateFlag {
   farmerId2 String
   farmer2   Farmer @relation("Farmer2", fields: [farmerId2], references: [id], onDelete: Cascade)
 
- reviewedById String?
+  reviewedById String?
   reviewedBy   User?   @relation("ReviewedBy", fields: [reviewedById], references: [id])
+
   @@index([farmerId1])
   @@index([farmerId2])
   @@index([status])
@@ -388,14 +383,14 @@ model DuplicateFlag {
 // ─── Yield Reporting Models ───────────────────────────────
 
 model YieldReport {
-  id          String     @id @default(cuid())
-  season      Season
-  year        Int
-  stage       YieldStage
-  quantityKg  Float
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id         String     @id @default(cuid())
+  season     Season
+  year       Int
+  stage      YieldStage
+  quantityKg Float
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   farmerId String
   farmer   Farmer @relation(fields: [farmerId], references: [id], onDelete: Cascade)
@@ -536,15 +531,15 @@ model AuditLog {
 // ─── Export Job Models ────────────────────────────────────
 
 model ExportJob {
-  id          String       @id @default(cuid())
-  type        String
-  format      ExportFormat
-  status      ExportStatus @default(QUEUED)
-  fileUrl     String?
-  filters     Json?
+  id           String       @id @default(cuid())
+  type         String
+  format       ExportFormat
+  status       ExportStatus @default(QUEUED)
+  fileUrl      String?
+  filters      Json?
   errorMessage String?
-  createdAt   DateTime     @default(now())
-  completedAt DateTime?
+  createdAt    DateTime     @default(now())
+  completedAt  DateTime?
 
   userId String
   user   User   @relation(fields: [userId], references: [id])

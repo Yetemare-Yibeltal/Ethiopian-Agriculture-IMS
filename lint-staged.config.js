@@ -3,7 +3,7 @@ module.exports = {
     'eslint --fix --max-warnings 0',
     'prettier --write',
   ],
-  'backend/src/**/*.{ts}': [
+  'backend/src/**/*.ts': [
     'eslint --fix --max-warnings 0',
     'prettier --write',
   ],
@@ -11,5 +11,4 @@ module.exports = {
   '**/*.css': ['prettier --write'],
   '**/*.md': ['prettier --write'],
   '**/*.{yml,yaml}': ['prettier --write'],
-  '**/*.prisma': ['prettier --write'],
 };

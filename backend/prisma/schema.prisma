@@ -1,0 +1,572 @@
+// ─────────────────────────────────────────────────────────
+// AgroEthiopia MIS — Prisma Database Schema
+// PostgreSQL 16 with all tables, relations, and indexes
+// ─────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  FIELD_AGENT
+  NGO_PARTNER
+  VIEWER
+}
+
+enum FarmerStatus {
+  ACTIVE
+  INACTIVE
+  FLAGGED
+  PENDING
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum YieldStage {
+  PRE_HARVEST
+  HARVEST
+  FINAL
+}
+
+enum Season {
+  Meher
+  Belg
+}
+
+enum OrgType {
+  NGO
+  GOVERNMENT
+  INTERNATIONAL
+  RESEARCH
+  OTHER
+}
+
+enum InputCategory {
+  FERTILIZER
+  SEED
+  PESTICIDE
+  TOOL
+  OTHER
+}
+
+enum CropCategory {
+  CEREAL
+  PULSE
+  OILSEED
+  VEGETABLE
+  FRUIT
+  CASH_CROP
+  FODDER
+  OTHER
+}
+
+enum ZoneType {
+  IRRIGATION
+  DROUGHT_RISK
+  NGO_COVERAGE
+  FLOOD_RISK
+  CUSTOM
+}
+
+enum DuplicateStatus {
+  PENDING
+  REVIEWED
+  MERGED
+  DISMISSED
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ExportFormat {
+  EXCEL
+  PDF
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  APPROVE
+  REJECT
+}
+
+enum NotificationType {
+  FOOD_SECURITY_ALERT
+  DUPLICATE_BLOCKED
+  EXPORT_READY
+  NEW_USER
+  SYSTEM
+  AID_REMINDER
+}
+
+// ─── User & Auth Models ───────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  password     String
+  role         UserRole  @default(VIEWER)
+  language     String    @default("en")
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  orgId        String?
+  organization Organization? @relation(fields: [orgId], references: [id])
+
+  refreshTokens  RefreshToken[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
+  exportJobs     ExportJob[]
+
+  duplicateFlagsReviewed DuplicateFlag[] @relation("ReviewedBy")
+  yieldReports   YieldReport[] @relation("SubmittedBy")
+  distributions  Distribution[] @relation("DistributedBy")
+  drawnZones     DrawnZone[]   @relation("CreatedBy")
+  systemSettings SystemSetting[] @relation("UpdatedBy")
+
+  @@index([email])
+  @@index([role])
+  @@index([orgId])
+  @@index([isActive])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Organization Models ──────────────────────────────────
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  type         OrgType
+  description  String?
+  website      String?
+  email        String?
+  phone        String?
+  address      String?
+  focusAreas   String[] @default([])
+  activeRegions String[] @default([])
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  users         User[]
+  distributions Distribution[]
+
+  @@index([type])
+  @@index([isActive])
+  @@map("organizations")
+}
+
+// ─── Region Hierarchy Models ──────────────────────────────
+
+model Region {
+  id          String @id @default(cuid())
+  name        String @unique
+  amharicName String?
+
+  zones Zone[]
+
+  @@index([name])
+  @@map("regions")
+}
+
+model Zone {
+  id          String @id @default(cuid())
+  name        String
+  amharicName String?
+
+  regionId String
+  region   Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+
+  woredas Woreda[]
+
+  @@unique([name, regionId])
+  @@index([regionId])
+  @@map("zones")
+}
+
+model Woreda {
+  id          String @id @default(cuid())
+  name        String
+  amharicName String?
+
+  zoneId String
+  zone   Zone   @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+
+  kebeles            Kebele[]
+  foodSecurityAlerts FoodSecurityAlert[]
+
+  @@unique([name, zoneId])
+  @@index([zoneId])
+  @@map("woredas")
+}
+
+model Kebele {
+  id          String  @id @default(cuid())
+  name        String
+  amharicName String?
+  geoLat      Float?
+  geoLng      Float?
+
+  woredaId String
+  woreda   Woreda @relation(fields: [woredaId], references: [id], onDelete: Cascade)
+
+  farmers Farmer[]
+
+  @@unique([name, woredaId])
+  @@index([woredaId])
+  @@index([geoLat, geoLng])
+  @@map("kebeles")
+}
+
+// ─── Crop & Input Models ──────────────────────────────────
+
+model Crop {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  amharicName String?
+  category    CropCategory @default(CEREAL)
+  isActive    Boolean      @default(true)
+
+  farmerCrops  FarmerCrop[]
+  yieldReports YieldReport[]
+  farmers      Farmer[]     @relation("PrimaryCrop")
+
+  @@index([category])
+  @@map("crops")
+}
+
+model InputType {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  amharicName String?
+  category    InputCategory @default(OTHER)
+  unit        String        @default("kg")
+  isActive    Boolean       @default(true)
+
+  distributions Distribution[]
+
+  @@index([category])
+  @@map("input_types")
+}
+
+// ─── Farmer Models ────────────────────────────────────────
+
+model Farmer {
+  id              String       @id @default(cuid())
+  farmerId        String       @unique
+  firstName       String
+  lastName        String
+  phone           String?
+  dateOfBirth     DateTime?
+  gender          Gender?
+  photoUrl        String?
+  landSizeTimad   Float?
+  landSizeHectare Float?
+  gpsLat          Float?
+  gpsLng          Float?
+  notes           String?
+  status          FarmerStatus @default(ACTIVE)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  // Location
+  kebeleId String
+  kebele   Kebele @relation(fields: [kebeleId], references: [id])
+
+  // Primary crop
+  primaryCropId String?
+  primaryCrop   Crop?   @relation("PrimaryCrop", fields: [primaryCropId], references: [id])
+
+  // Who registered this farmer
+  registeredById String
+  registeredBy   User   @relation("RegisteredBy", fields: [registeredById], references: [id])
+
+  // Relations
+  farmerCrops   FarmerCrop[]
+  yieldReports  YieldReport[]
+  distributions Distribution[]
+  duplicateFlags1 DuplicateFlag[] @relation("Farmer1")
+  duplicateFlags2 DuplicateFlag[] @relation("Farmer2")
+
+  @@index([farmerId])
+  @@index([kebeleId])
+  @@index([status])
+  @@index([registeredById])
+  @@index([primaryCropId])
+  @@index([gpsLat, gpsLng])
+  @@index([firstName, lastName])
+  @@index([phone])
+  @@index([createdAt])
+  @@map("farmers")
+}
+
+model FarmerCrop {
+  id        String  @id @default(cuid())
+  season    String
+  isPrimary Boolean @default(false)
+
+  farmerId String
+  farmer   Farmer @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  cropId String
+  crop   Crop   @relation(fields: [cropId], references: [id])
+
+  @@unique([farmerId, cropId, season])
+  @@index([farmerId])
+  @@index([cropId])
+  @@map("farmer_crops")
+}
+
+model DuplicateFlag {
+  id              String          @id @default(cuid())
+  similarityScore Float           @default(0)
+  status          DuplicateStatus @default(PENDING)
+  createdAt       DateTime        @default(now())
+
+  farmerId1 String
+  farmer1   Farmer @relation("Farmer1", fields: [farmerId1], references: [id], onDelete: Cascade)
+
+  farmerId2 String
+  farmer2   Farmer @relation("Farmer2", fields: [farmerId2], references: [id], onDelete: Cascade)
+
+ reviewedById String?
+  reviewedBy   User?   @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  @@index([farmerId1])
+  @@index([farmerId2])
+  @@index([status])
+  @@map("duplicate_flags")
+}
+
+// ─── Yield Reporting Models ───────────────────────────────
+
+model YieldReport {
+  id          String     @id @default(cuid())
+  season      Season
+  year        Int
+  stage       YieldStage
+  quantityKg  Float
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  farmerId String
+  farmer   Farmer @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  cropId String
+  crop   Crop   @relation(fields: [cropId], references: [id])
+
+  submittedById String
+  submittedBy   User   @relation("SubmittedBy", fields: [submittedById], references: [id])
+
+  @@unique([farmerId, cropId, season, year, stage])
+  @@index([farmerId])
+  @@index([cropId])
+  @@index([season, year])
+  @@index([stage])
+  @@index([submittedById])
+  @@index([createdAt])
+  @@map("yield_reports")
+}
+
+model FoodSecurityAlert {
+  id             String        @id @default(cuid())
+  season         Season
+  year           Int
+  actualYield    Float
+  thresholdYield Float
+  severity       AlertSeverity @default(MEDIUM)
+  resolvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+
+  woredaId String
+  woreda   Woreda @relation(fields: [woredaId], references: [id])
+
+  @@index([woredaId])
+  @@index([season, year])
+  @@index([severity])
+  @@index([resolvedAt])
+  @@map("food_security_alerts")
+}
+
+// ─── Distribution Models ──────────────────────────────────
+
+model Distribution {
+  id         String   @id @default(cuid())
+  quantity   Float
+  unit       String
+  season     Season
+  year       Int
+  notes      String?
+  receiptUrl String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  farmerId String
+  farmer   Farmer @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+
+  inputTypeId String
+  inputType   InputType @relation(fields: [inputTypeId], references: [id])
+
+  orgId        String
+  organization Organization @relation(fields: [orgId], references: [id])
+
+  distributedById String
+  distributedBy   User   @relation("DistributedBy", fields: [distributedById], references: [id])
+
+  @@index([farmerId])
+  @@index([inputTypeId])
+  @@index([orgId])
+  @@index([season, year])
+  @@index([distributedById])
+  @@index([createdAt])
+  @@map("distributions")
+}
+
+// ─── Map & Zone Models ────────────────────────────────────
+
+model DrawnZone {
+  id        String   @id @default(cuid())
+  name      String
+  type      ZoneType
+  geoJson   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+
+  @@index([type])
+  @@index([createdById])
+  @@map("drawn_zones")
+}
+
+// ─── Notification Models ──────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ─── Audit Log Models ─────────────────────────────────────
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  action      AuditAction
+  tableName   String
+  recordId    String?
+  beforeState Json?
+  afterState  Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([tableName])
+  @@index([recordId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ─── Export Job Models ────────────────────────────────────
+
+model ExportJob {
+  id          String       @id @default(cuid())
+  type        String
+  format      ExportFormat
+  status      ExportStatus @default(QUEUED)
+  fileUrl     String?
+  filters     Json?
+  errorMessage String?
+  createdAt   DateTime     @default(now())
+  completedAt DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("export_jobs")
+}
+
+// ─── System Settings Model ────────────────────────────────
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?   @relation("UpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([key])
+  @@map("system_settings")
+}

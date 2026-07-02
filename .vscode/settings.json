@@ -78,5 +78,6 @@
 
   "workbench.colorTheme": "Dark Modern",
   "workbench.iconTheme": "material-icon-theme",
-  "workbench.editor.enablePreview": false
+  "workbench.editor.enablePreview": false,
+  "prisma.pinToPrisma6": true
 }

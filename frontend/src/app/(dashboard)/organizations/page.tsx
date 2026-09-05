@@ -127,16 +127,27 @@ export default function OrganizationsPage() {
       return res.data;
     },
     onSuccess: () => {
-      toast.success('Organization created', 'Organization has been created successfully.');
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+      toast.success(
+        'Organization created',
+        'Organization has been created successfully.',
+      );
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organizations.all,
+      });
       setShowForm(false);
       reset();
     },
     onError: (error: { message?: string; statusCode?: number }) => {
       if (error?.statusCode === 409) {
-        toast.error('Already exists', 'An organization with this name already exists.');
+        toast.error(
+          'Already exists',
+          'An organization with this name already exists.',
+        );
       } else {
-        toast.error('Failed to create', error?.message || 'Please try again.');
+        toast.error(
+          'Failed to create',
+          error?.message || 'Please try again.',
+        );
       }
     },
   });
@@ -147,8 +158,13 @@ export default function OrganizationsPage() {
       await apiClient.patch(`/organizations/${id}/deactivate`);
     },
     onSuccess: () => {
-      toast.success('Organization deactivated', 'Organization has been deactivated.');
-      queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+      toast.success(
+        'Organization deactivated',
+        'Organization has been deactivated.',
+      );
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organizations.all,
+      });
     },
     onError: () => {
       toast.error('Failed to deactivate', 'Please try again.');
@@ -158,7 +174,11 @@ export default function OrganizationsPage() {
   const organizations = data?.data || [];
   const pagination = data?.pagination;
   const paginationInfo = pagination
-    ? getPaginationInfo(pagination.total, pagination.page, pagination.perPage)
+    ? getPaginationInfo(
+        pagination.total,
+        pagination.page,
+        pagination.perPage,
+      )
     : null;
 
   const inputStyle = {
@@ -191,12 +211,16 @@ export default function OrganizationsPage() {
           >
             Organizations
           </h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <p
+            className="text-sm"
+            style={{ color: 'rgba(255,255,255,0.4)' }}
+          >
             {pagination
               ? `${formatCount(pagination.total)} organizations`
               : 'Loading...'}
           </p>
         </div>
+
         {permissions.canCreateOrganizations && (
           <button
             onClick={() => setShowForm(true)}
@@ -239,6 +263,7 @@ export default function OrganizationsPage() {
               >
                 Add Organization
               </h2>
+
               <button
                 onClick={() => {
                   setShowForm(false);
@@ -251,7 +276,9 @@ export default function OrganizationsPage() {
             </div>
 
             <form
-              onSubmit={handleSubmit((data) => createMutation.mutate(data))}
+              onSubmit={handleSubmit((data) =>
+                createMutation.mutate(data),
+              )}
               className="space-y-4"
             >
               <div>
@@ -262,7 +289,10 @@ export default function OrganizationsPage() {
                   style={inputStyle}
                 />
                 {errors.name && (
-                  <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: '#f87171' }}
+                  >
                     {errors.name.message}
                   </p>
                 )}
@@ -278,8 +308,12 @@ export default function OrganizationsPage() {
                   <option value="RESEARCH">Research</option>
                   <option value="OTHER">Other</option>
                 </select>
+
                 {errors.type && (
-                  <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: '#f87171' }}
+                  >
                     {errors.type.message}
                   </p>
                 )}
@@ -304,12 +338,17 @@ export default function OrganizationsPage() {
                     placeholder="info@org.et"
                     style={inputStyle}
                   />
+
                   {errors.email && (
-                    <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: '#f87171' }}
+                    >
                       {errors.email.message}
                     </p>
                   )}
                 </div>
+
                 <div>
                   <label style={labelStyle}>Phone</label>
                   <input
@@ -327,8 +366,12 @@ export default function OrganizationsPage() {
                   placeholder="https://www.org.et"
                   style={inputStyle}
                 />
+
                 {errors.website && (
-                  <p className="text-xs mt-1" style={{ color: '#f87171' }}>
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: '#f87171' }}
+                  >
                     {errors.website.message}
                   </p>
                 )}
@@ -359,6 +402,7 @@ export default function OrganizationsPage() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
@@ -398,6 +442,7 @@ export default function OrganizationsPage() {
               className="absolute left-3 top-1/2 -translate-y-1/2"
               style={{ color: 'rgba(255,255,255,0.3)' }}
             />
+
             <input
               type="text"
               placeholder="Search organizations..."
@@ -415,6 +460,7 @@ export default function OrganizationsPage() {
               }}
             />
           </div>
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
@@ -422,13 +468,20 @@ export default function OrganizationsPage() {
               background: showFilters
                 ? 'rgba(0,255,136,0.1)'
                 : 'rgba(255,255,255,0.05)',
-              border: `1px solid ${showFilters ? 'rgba(0,255,136,0.2)' : 'rgba(255,255,255,0.08)'}`,
-              color: showFilters ? '#00ff88' : 'rgba(255,255,255,0.6)',
+              border: `1px solid ${
+                showFilters
+                  ? 'rgba(0,255,136,0.2)'
+                  : 'rgba(255,255,255,0.08)'
+              }`,
+              color: showFilters
+                ? '#00ff88'
+                : 'rgba(255,255,255,0.6)',
             }}
           >
             <Filter size={15} />
             Filters
           </button>
+
           <button
             onClick={() => refetch()}
             className="p-2.5 rounded-xl"
@@ -465,6 +518,7 @@ export default function OrganizationsPage() {
               <option value="RESEARCH">Research</option>
               <option value="OTHER">Other</option>
             </select>
+
             {(typeFilter || search) && (
               <button
                 onClick={() => {
@@ -510,13 +564,18 @@ export default function OrganizationsPage() {
             className="mx-auto mb-4"
             style={{ color: 'rgba(255,255,255,0.15)' }}
           />
+
           <p
             className="text-base font-medium mb-2"
             style={{ color: 'rgba(255,255,255,0.4)' }}
           >
             No organizations found
           </p>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.25)' }}>
+
+          <p
+            className="text-sm"
+            style={{ color: 'rgba(255,255,255,0.25)' }}
+          >
             {search
               ? 'Try a different search term'
               : 'Add the first organization to get started'}
@@ -527,6 +586,7 @@ export default function OrganizationsPage() {
           {organizations.map((org, index) => {
             const typeColor =
               typeColors[org.type] || typeColors.OTHER;
+
             return (
               <motion.div
                 key={org.id}
@@ -536,7 +596,11 @@ export default function OrganizationsPage() {
                 className="p-5 rounded-2xl"
                 style={{
                   background: 'rgba(255,255,255,0.04)',
-                  border: `1px solid ${org.isActive ? 'rgba(255,255,255,0.08)' : 'rgba(248,113,113,0.15)'}`,
+                  border: `1px solid ${
+                    org.isActive
+                      ? 'rgba(255,255,255,0.08)'
+                      : 'rgba(248,113,113,0.15)'
+                  }`,
                 }}
               >
                 {/* Header */}
@@ -545,8 +609,12 @@ export default function OrganizationsPage() {
                     className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
                     style={{ background: typeColor.bg }}
                   >
-                    <Building2 size={18} style={{ color: typeColor.text }} />
+                    <Building2
+                      size={18}
+                      style={{ color: typeColor.text }}
+                    />
                   </div>
+
                   <div className="flex items-center gap-2">
                     <span
                       className="px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -557,6 +625,7 @@ export default function OrganizationsPage() {
                     >
                       {org.type}
                     </span>
+
                     {!org.isActive && (
                       <span
                         className="px-2 py-0.5 rounded-full text-xs font-semibold"
@@ -578,6 +647,7 @@ export default function OrganizationsPage() {
                 >
                   {org.name}
                 </h3>
+
                 {org.description && (
                   <p
                     className="text-xs mb-4 line-clamp-2"
@@ -595,6 +665,7 @@ export default function OrganizationsPage() {
                         size={12}
                         style={{ color: 'rgba(255,255,255,0.3)' }}
                       />
+
                       <span
                         className="text-xs truncate"
                         style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -603,12 +674,14 @@ export default function OrganizationsPage() {
                       </span>
                     </div>
                   )}
+
                   {org.phone && (
                     <div className="flex items-center gap-2">
                       <Phone
                         size={12}
                         style={{ color: 'rgba(255,255,255,0.3)' }}
                       />
+
                       <span
                         className="text-xs"
                         style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -617,6 +690,7 @@ export default function OrganizationsPage() {
                       </span>
                     </div>
                   )}
+
                   {org.website && (
                     <div className="flex items-center gap-2">
                       <Globe
@@ -624,6 +698,7 @@ export default function OrganizationsPage() {
                         style={{ color: 'rgba(255,255,255,0.3)' }}
                       />
 
+                      <a
                         href={org.website}
                         target="_blank"
                         rel="noopener noreferrer"
@@ -639,13 +714,16 @@ export default function OrganizationsPage() {
                 {/* Stats */}
                 <div
                   className="flex items-center justify-between pt-3 mb-4"
-                  style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                  style={{
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                  }}
                 >
                   <div className="flex items-center gap-1.5">
                     <Users
                       size={12}
                       style={{ color: 'rgba(255,255,255,0.3)' }}
                     />
+
                     <span
                       className="text-xs"
                       style={{ color: 'rgba(255,255,255,0.5)' }}
@@ -653,6 +731,7 @@ export default function OrganizationsPage() {
                       {org._count.users} users
                     </span>
                   </div>
+
                   <div className="flex items-center gap-1.5">
                     <span
                       className="text-xs"
@@ -677,10 +756,13 @@ export default function OrganizationsPage() {
                     <Eye size={12} />
                     View Details
                   </Link>
+
                   {permissions.canDeactivateOrganizations &&
                     org.isActive && (
                       <button
-                        onClick={() => deactivateMutation.mutate(org.id)}
+                        onClick={() =>
+                          deactivateMutation.mutate(org.id)
+                        }
                         disabled={deactivateMutation.isPending}
                         className="px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200"
                         style={{
@@ -700,49 +782,58 @@ export default function OrganizationsPage() {
       )}
 
       {/* Pagination */}
-      {paginationInfo && pagination && pagination.pageCount > 1 && (
-        <div className="flex items-center justify-between">
-          <p
-            className="text-xs"
-            style={{ color: 'rgba(255,255,255,0.35)' }}
-          >
-            Showing {paginationInfo.from}–{paginationInfo.to} of{' '}
-            {formatCount(pagination.total)}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={!paginationInfo.hasPrev}
-              className="p-1.5 rounded-lg disabled:opacity-30"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                color: 'rgba(255,255,255,0.6)',
-              }}
+      {paginationInfo &&
+        pagination &&
+        pagination.pageCount > 1 && (
+          <div className="flex items-center justify-between">
+            <p
+              className="text-xs"
+              style={{ color: 'rgba(255,255,255,0.35)' }}
             >
-              <ChevronLeft size={14} />
-            </button>
-            <span
-              className="text-xs px-2"
-              style={{ color: 'rgba(255,255,255,0.5)' }}
-            >
-              {page} / {pagination.pageCount}
-            </span>
-            <button
-              onClick={() =>
-                setPage((p) => Math.min(pagination.pageCount, p + 1))
-              }
-              disabled={!paginationInfo.hasNext}
-              className="p-1.5 rounded-lg disabled:opacity-30"
-              style={{
-                background: 'rgba(255,255,255,0.05)',
-                color: 'rgba(255,255,255,0.6)',
-              }}
-            >
-              <ChevronRight size={14} />
-            </button>
+              Showing {paginationInfo.from}–{paginationInfo.to} of{' '}
+              {formatCount(pagination.total)}
+            </p>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  setPage((p) => Math.max(1, p - 1))
+                }
+                disabled={!paginationInfo.hasPrev}
+                className="p-1.5 rounded-lg disabled:opacity-30"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'rgba(255,255,255,0.6)',
+                }}
+              >
+                <ChevronLeft size={14} />
+              </button>
+
+              <span
+                className="text-xs px-2"
+                style={{ color: 'rgba(255,255,255,0.5)' }}
+              >
+                {page} / {pagination.pageCount}
+              </span>
+
+              <button
+                onClick={() =>
+                  setPage((p) =>
+                    Math.min(pagination.pageCount, p + 1),
+                  )
+                }
+                disabled={!paginationInfo.hasNext}
+                className="p-1.5 rounded-lg disabled:opacity-30"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  color: 'rgba(255,255,255,0.6)',
+                }}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }

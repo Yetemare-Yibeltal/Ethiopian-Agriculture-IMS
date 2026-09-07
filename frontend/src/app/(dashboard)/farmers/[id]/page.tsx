@@ -126,7 +126,7 @@ export default function FarmerProfilePage() {
   const permissions = usePermissions();
   const { downloadQRCode, downloadReceipt } = useExport();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState
+  const [activeTab, setActiveTab] = useState<
     'overview' | 'yields' | 'distributions' | 'qrcode'
   >('overview');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -728,6 +728,7 @@ export default function FarmerProfilePage() {
                     </p>
                   </div>
 
+                  <a
                     href={`https://maps.google.com/?q=${farmer.gpsLat},${farmer.gpsLng}`}
                     target="_blank"
                     rel="noopener noreferrer"

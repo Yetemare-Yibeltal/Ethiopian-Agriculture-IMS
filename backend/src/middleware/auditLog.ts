@@ -147,7 +147,7 @@ export const auditLogMiddleware = (
           action,
           tableName,
           recordId,
-          beforeState: null,
+         beforeState: undefined,
           afterState: JSON.stringify(requestBody),
           ipAddress: req.ip || req.connection.remoteAddress || 'unknown',
           userAgent: req.get('user-agent') || 'unknown',

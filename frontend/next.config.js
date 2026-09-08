@@ -1,6 +1,4 @@
 const withPWA = require('next-pwa')({
-
-const withPWA = require('next-pwa')({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
   register: true,
@@ -66,7 +64,8 @@ const withPWA = require('next-pwa')({
   ],
 });
 
-const nextConfig = {  // ─── Images ────────────────────────────────────────────
+const nextConfig = {
+  // ─── Images ────────────────────────────────────────────
   images: {
     remotePatterns: [
       {
@@ -182,6 +181,6 @@ const nextConfig = {  // ─── Images ────────────�
 
   // ─── React strict mode ──────────────────────────────────
   reactStrictMode: true,
-}
+};
 
 module.exports = withPWA(nextConfig);

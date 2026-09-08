@@ -383,7 +383,7 @@ authRouter.get(
   '/me',
   authenticate,
   asyncHandler(async (req, res) => {
-    const userId = req.user?.id ?? '';
+    const userId = (req as any).user?.id ?? '';
 
     const user = await db.user.findUnique({
       where: { id: userId },
@@ -426,7 +426,7 @@ authRouter.put(
     }
 
     const { currentPassword, newPassword } = parsed.data;
-    const userId = req.user?.id ?? '';
+    const userId = (req as any).user?.id ?? '';
 
     // Get user with hashed password
     const user = await db.user.findUnique({

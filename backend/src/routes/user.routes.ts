@@ -1,16 +1,16 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/authenticate';
-import { authorize } from '../middleware/authorize';
+import { authorize, UserRole } from '../middleware/authorize';
 import { asyncHandler } from '../lib/asyncHandler';
-import { ApiResponse } from '../lib/ApiResponse';
 import { ApiError } from '../lib/ApiError';
 import prisma from '../lib/db';
-import bcrypt from 'bcrypt';
-import type { Request } from 'express';
+import bcrypt from 'bcryptjs';
+import type { Request, Response } from 'express';
 
 export const userRouter = Router();
 
-userRouter.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req: Request, res) => {
+// Get All Users
+userRouter.get('/', authenticate, authorize([UserRole.SUPER_ADMIN, UserRole.ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const perPage = parseInt(req.query.perPage as string) || 20;
   const search = req.query.search as string;
@@ -25,12 +25,14 @@ userRouter.get('/', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), asyncHand
   return res.json({ success: true, data: users, pagination: { total, page, perPage, pageCount: Math.ceil(total / perPage) } });
 }));
 
-userRouter.get('/:id', authenticate, authorize(['SUPER_ADMIN', 'ADMIN']), asyncHandler(async (req: Request, res) => {
+// Get User By ID
+userRouter.get('/:id', authenticate, authorize([UserRole.SUPER_ADMIN, UserRole.ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, name: true, email: true, role: true, language: true, isActive: true, lastLoginAt: true, createdAt: true, updatedAt: true, organization: { select: { id: true, name: true, type: true } } } });
   return res.json({ success: true, data: user });
 }));
 
-userRouter.post('/', authenticate, authorize(['SUPER_ADMIN']), asyncHandler(async (req: Request, res) => {
+// Create User
+userRouter.post('/', authenticate, authorize([UserRole.SUPER_ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const { name, email, password, role, orgId, language } = req.body;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) throw new ApiError(409, 'Email already exists');
@@ -39,25 +41,28 @@ userRouter.post('/', authenticate, authorize(['SUPER_ADMIN']), asyncHandler(asyn
   return res.status(201).json({ success: true, data: user, message: 'User created successfully' });
 }));
 
-userRouter.patch('/:id', authenticate, authorize(['SUPER_ADMIN']), asyncHandler(async (req: Request, res) => {
+// Update User
+userRouter.patch('/:id', authenticate, authorize([UserRole.SUPER_ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const { name, role, orgId, language, isActive } = req.body;
-  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   const updated = await prisma.user.update({ where: { id: req.params.id }, data: { ...(name && { name }), ...(role && { role }), ...(orgId !== undefined && { orgId: orgId || null }), ...(language && { language }), ...(isActive !== undefined && { isActive }) }, select: { id: true, name: true, email: true, role: true, language: true, isActive: true, updatedAt: true, organization: { select: { id: true, name: true, type: true } } } });
   return res.json({ success: true, data: updated, message: 'User updated successfully' });
 }));
 
-userRouter.patch('/:id/reset-password', authenticate, authorize(['SUPER_ADMIN']), asyncHandler(async (req: Request, res) => {
+// Reset Password
+userRouter.patch('/:id/reset-password', authenticate, authorize([UserRole.SUPER_ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const { newPassword } = req.body;
-  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   const hashedPassword = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({ where: { id: req.params.id }, data: { password: hashedPassword } });
   return res.json({ success: true, data: null, message: 'Password reset successfully' });
 }));
 
-userRouter.delete('/:id', authenticate, authorize(['SUPER_ADMIN']), asyncHandler(async (req: Request, res) => {
-  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+// Delete User
+userRouter.delete('/:id', authenticate, authorize([UserRole.SUPER_ADMIN]), asyncHandler(async (req: Request, res: Response) => {
+  const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   const authReq = req as Request & { user?: { id: string } };
-  if (user.id === authReq.user?.id) throw new ApiError(400, 'You cannot delete your own account');
+  if (existing.id === authReq.user?.id) throw new ApiError(400, 'You cannot delete your own account');
   await prisma.user.delete({ where: { id: req.params.id } });
   return res.json({ success: true, data: null, message: 'User deleted successfully' });
 }));

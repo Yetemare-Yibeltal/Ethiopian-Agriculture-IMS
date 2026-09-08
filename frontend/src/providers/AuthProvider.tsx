@@ -18,6 +18,8 @@ export interface AuthUser {
   role: string;
   orgId: string | null;
   language: string;
+  createdAt?: string;
+  lastLoginAt?: string;
   organization?: {
     id: string;
     name: string;

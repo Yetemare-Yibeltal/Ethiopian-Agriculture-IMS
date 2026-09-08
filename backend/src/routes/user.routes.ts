@@ -4,7 +4,7 @@ import { authorize, UserRole } from '../middleware/authorize';
 import { asyncHandler } from '../lib/asyncHandler';
 import { ApiError } from '../lib/ApiError';
 import prisma from '../lib/db';
-import bcrypt from 'bcryptjs';
+const bcrypt = require('bcryptjs');
 import type { Request, Response } from 'express';
 
 export const userRouter = Router();
@@ -62,7 +62,7 @@ userRouter.patch('/:id/reset-password', authenticate, authorize([UserRole.SUPER_
 userRouter.delete('/:id', authenticate, authorize([UserRole.SUPER_ADMIN]), asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.user.findUnique({ where: { id: req.params.id } });
   const authReq = req as Request & { user?: { id: string } };
-  if (existing.id === authReq.user?.id) throw new ApiError(400, 'You cannot delete your own account');
+  if (existing && existing.id === authReq.user?.id) throw new ApiError(400, 'You cannot delete your own account');
   await prisma.user.delete({ where: { id: req.params.id } });
   return res.json({ success: true, data: null, message: 'User deleted successfully' });
 }));

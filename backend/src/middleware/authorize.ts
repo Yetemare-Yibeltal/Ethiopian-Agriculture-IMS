@@ -1,8 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-
 import { ApiError } from '../lib/ApiError';
 
-// ─── User roles enum ──────────────────────────────────────
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
@@ -11,7 +9,6 @@ export enum UserRole {
   VIEWER = 'VIEWER',
 }
 
-// ─── Role hierarchy ───────────────────────────────────────
 const roleHierarchy: Record<UserRole, number> = {
   [UserRole.SUPER_ADMIN]: 5,
   [UserRole.ADMIN]: 4,
@@ -20,87 +17,52 @@ const roleHierarchy: Record<UserRole, number> = {
   [UserRole.VIEWER]: 1,
 };
 
-/**
- * Authorization middleware — checks user role against allowed roles.
- * Must be used AFTER authenticate middleware.
- *
- * Usage:
- *   router.get('/users',
- *     authenticate,
- *     authorize([UserRole.SUPER_ADMIN, UserRole.ADMIN]),
- *     userController.getAll
- *   );
- */
 export const authorize = (allowedRoles: UserRole[]) => {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      throw ApiError.unauthorized(
-        'Authentication required. Please log in first.',
-      );
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as Request & { user?: { id: string; role: string; orgId: string | null } }).user;
+    if (!user) {
+      next(new ApiError(401, 'Authentication required'));
+      return;
     }
-
-    const userRole = req.user.role as UserRole;
-    const isAllowed = allowedRoles.includes(userRole);
-
-    if (!isAllowed) {
-      throw ApiError.forbidden(
-        `Access denied. Required roles: ${allowedRoles.join(', ')}. Your role: ${userRole}.`,
-      );
+    if (!allowedRoles.includes(user.role as UserRole)) {
+      next(new ApiError(403, 'Insufficient permissions'));
+      return;
     }
-
     next();
   };
 };
 
-/**
- * Authorize by minimum role level.
- * Any role at or above the minimum level is allowed.
- */
 export const authorizeMinRole = (minimumRole: UserRole) => {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      throw ApiError.unauthorized(
-        'Authentication required. Please log in first.',
-      );
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as Request & { user?: { id: string; role: string; orgId: string | null } }).user;
+    if (!user) {
+      next(new ApiError(401, 'Authentication required'));
+      return;
     }
-
-    const userRole = req.user.role as UserRole;
-    const userLevel = roleHierarchy[userRole] || 0;
-    const requiredLevel = roleHierarchy[minimumRole] || 0;
-
+    const userLevel = roleHierarchy[user.role as UserRole] || 0;
+    const requiredLevel = roleHierarchy[minimumRole];
     if (userLevel < requiredLevel) {
-      throw ApiError.forbidden(
-        `Access denied. Minimum required role: ${minimumRole}. Your role: ${userRole}.`,
-      );
+      next(new ApiError(403, 'Insufficient permissions'));
+      return;
     }
-
     next();
   };
 };
 
-/**
- * Check if user owns the resource or has admin privileges.
- */
 export const authorizeOwnerOrAdmin = (paramName = 'id') => {
-  return (req: Request, _res: Response, next: NextFunction): void => {
-    if (!req.user) {
-      throw ApiError.unauthorized(
-        'Authentication required. Please log in first.',
-      );
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const user = (req as Request & { user?: { id: string; role: string; orgId: string | null } }).user;
+    if (!user) {
+      next(new ApiError(401, 'Authentication required'));
+      return;
     }
-
     const resourceId = req.params[paramName];
-    const userRole = req.user.role as UserRole;
-    const isAdmin =
-      userRole === UserRole.SUPER_ADMIN || userRole === UserRole.ADMIN;
-    const isOwner = req.user.id === resourceId;
-
+    const isAdmin = [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(user.role as UserRole);
+    const isOwner = user.id === resourceId;
     if (!isAdmin && !isOwner) {
-      throw ApiError.forbidden(
-        'Access denied. You can only modify your own resources.',
-      );
+      next(new ApiError(403, 'Access denied'));
+      return;
     }
-
     next();
   };
 };

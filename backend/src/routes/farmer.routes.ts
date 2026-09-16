@@ -208,8 +208,8 @@ farmerRouter.get(
     };
 
     // Field agents only see farmers in their assigned kebele
-    if (req.user?.role === UserRole.FIELD_AGENT) {
-      where.registeredById = req.user.id;
+    if ((req as any).user?.role === UserRole.FIELD_AGENT) {
+      where.registeredById = (req as any).user.id;
     }
 
     const { skip, take } = getPaginationParams(page, perPage);
@@ -460,7 +460,7 @@ farmerRouter.post(
         primaryCropId: data.primaryCropId ?? null,
         notes: data.notes ?? null,
         status: 'ACTIVE',
-        registeredById: req.user?.id ?? '',
+        registeredById: (req as any).user?.id ?? '',
       },
       select: {
         id: true,
@@ -530,8 +530,8 @@ farmerRouter.put(
 
     // Field agents can only edit farmers they registered
     if (
-      req.user?.role === UserRole.FIELD_AGENT &&
-      farmer.registeredById !== req.user.id
+      (req as any).user?.role === UserRole.FIELD_AGENT &&
+      farmer.registeredById !== (req as any).user.id
     ) {
       throw ApiError.forbidden('You can only edit farmers you registered.');
     }

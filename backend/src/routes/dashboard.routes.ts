@@ -54,8 +54,8 @@ dashboardRouter.get(
     UserRole.VIEWER,
   ]),
   asyncHandler(async (req, res) => {
-    const userRole = req.user?.role as UserRole;
-    const userOrgId = req.user?.orgId;
+    const userRole = (req as any).user?.role as UserRole;
+    const userOrgId = (req as any).user?.orgId;
     const currentYear = new Date().getFullYear();
     const currentSeason = config.DEFAULT_SEASON;
 

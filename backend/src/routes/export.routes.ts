@@ -48,7 +48,7 @@ exportRouter.post(
     // Create export job record
     const exportJob = await db.exportJob.create({
       data: {
-        userId: req.user?.id ?? '',
+        userId: (req as any).user?.id ?? '',
         type: 'FARMER_REGISTRY',
         format: format.toUpperCase() as 'EXCEL' | 'PDF',
         status: 'PROCESSING',
@@ -577,8 +577,8 @@ exportRouter.post(
 
     // NGO Partners can only export their own distributions
     const orgId =
-      req.user?.role === UserRole.NGO_PARTNER
-        ? (req.user.orgId ?? parsed.data.orgId)
+      (req as any).user?.role === UserRole.NGO_PARTNER
+        ? ((req as any).user.orgId ?? parsed.data.orgId)
         : parsed.data.orgId;
 
     const distributions = await db.distribution.findMany({
@@ -738,10 +738,10 @@ exportRouter.get(
     UserRole.VIEWER,
   ]),
   asyncHandler(async (req, res) => {
-    const userId = req.user?.id ?? '';
+    const userId = (req as any).user?.id ?? '';
     const isAdmin =
-      req.user?.role === UserRole.SUPER_ADMIN ||
-      req.user?.role === UserRole.ADMIN;
+      (req as any).user?.role === UserRole.SUPER_ADMIN ||
+      (req as any).user?.role === UserRole.ADMIN;
 
     const exports = await db.exportJob.findMany({
       where: {

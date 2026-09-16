@@ -135,8 +135,8 @@ yieldRouter.get(
     };
 
     // Field agents only see their own submissions
-    if (req.user?.role === UserRole.FIELD_AGENT) {
-      where.submittedById = req.user.id;
+    if ((req as any).user?.role === UserRole.FIELD_AGENT) {
+      where.submittedById = (req as any).user.id;
     }
 
     const { skip, take } = getPaginationParams(page, perPage);
@@ -478,7 +478,7 @@ yieldRouter.post(
         stage,
         quantityKg,
         notes: notes ?? null,
-        submittedById: req.user?.id ?? '',
+        submittedById: (req as any).user?.id ?? '',
       },
       select: {
         id: true,
@@ -574,8 +574,8 @@ yieldRouter.put(
 
     // Field agents can only edit their own submissions
     if (
-      req.user?.role === UserRole.FIELD_AGENT &&
-      yieldReport.submittedById !== req.user.id
+      (req as any).user?.role === UserRole.FIELD_AGENT &&
+      yieldReport.submittedById !== (req as any).user.id
     ) {
       throw ApiError.forbidden(
         'You can only edit yield reports you submitted.',

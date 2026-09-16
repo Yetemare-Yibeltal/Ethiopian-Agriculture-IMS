@@ -107,8 +107,8 @@ distributionRouter.get(
 
     // NGO Partners only see their own organization distributions
     const effectiveOrgId =
-      req.user?.role === UserRole.NGO_PARTNER
-        ? (req.user.orgId ?? orgId)
+      (req as any).user?.role === UserRole.NGO_PARTNER
+        ? ((req as any).user.orgId ?? orgId)
         : orgId;
 
     const where: Record<string, unknown> = {
@@ -574,7 +574,7 @@ distributionRouter.post(
         season,
         year,
         notes: notes ?? null,
-        distributedById: req.user?.id ?? '',
+        distributedById: (req as any).user?.id ?? '',
         createdAt: distributionDate ?? new Date(),
       },
       select: {

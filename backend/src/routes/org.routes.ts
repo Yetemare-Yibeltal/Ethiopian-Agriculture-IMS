@@ -148,7 +148,7 @@ orgRouter.get(
     const { id } = req.params;
 
     // NGO Partners can only view their own organization
-    if (req.user?.role === UserRole.NGO_PARTNER && req.user?.orgId !== id) {
+    if ((req as any).user?.role === UserRole.NGO_PARTNER && (req as any).user?.orgId !== id) {
       throw ApiError.forbidden('You can only view your own organization.');
     }
 
@@ -411,7 +411,7 @@ orgRouter.get(
     const { id } = req.params;
 
     // NGO Partners can only view their own organization activity
-    if (req.user?.role === UserRole.NGO_PARTNER && req.user?.orgId !== id) {
+    if ((req as any).user?.role === UserRole.NGO_PARTNER && (req as any).user?.orgId !== id) {
       throw ApiError.forbidden(
         'You can only view your own organization activity.',
       );

@@ -459,7 +459,7 @@ mapRouter.post(
         name: parsed.data.name,
         type: parsed.data.type,
         geoJson: parsed.data.geoJson,
-        createdById: req.user?.id ?? '',
+        createdById: (req as any).user?.id ?? '',
       },
       select: {
         id: true,

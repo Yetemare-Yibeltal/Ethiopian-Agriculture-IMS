@@ -4,7 +4,7 @@ import { authorize, UserRole } from '../middleware/authorize';
 import { asyncHandler } from '../lib/asyncHandler';
 import { ApiError } from '../lib/ApiError';
 import { db as prisma } from '../lib/db';
-const bcrypt = require('bcryptjs');
+import bcrypt from 'bcryptjs';
 import type { Request, Response } from 'express';
 
 export const userRouter = Router();

@@ -314,8 +314,8 @@ mapRouter.get(
 
     const kebeles = await db.kebele.findMany({
       where: {
-        gpsLat: { not: null },
-        gpsLng: { not: null },
+        geoLat: { not: null },
+        geoLng: { not: null },
         ...(woredaId && { woredaId }),
         ...(zoneId && { woreda: { zoneId } }),
         ...(regionId && { woreda: { zone: { regionId } } }),

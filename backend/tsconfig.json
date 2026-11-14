@@ -2,7 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "outDir": "./dist",
     "rootDir": "./",
     "strict": true,
@@ -30,17 +32,42 @@
     "emitDecoratorMetadata": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"],
-      "@config/*": ["src/config/*"],
-      "@controllers/*": ["src/controllers/*"],
-      "@middleware/*": ["src/middleware/*"],
-      "@routes/*": ["src/routes/*"],
-      "@services/*": ["src/services/*"],
-      "@validators/*": ["src/validators/*"],
-      "@lib/*": ["src/lib/*"],
-      "@types/*": ["src/types/*"]
+      "@/*": [
+        "src/*"
+      ],
+      "@config/*": [
+        "src/config/*"
+      ],
+      "@controllers/*": [
+        "src/controllers/*"
+      ],
+      "@middleware/*": [
+        "src/middleware/*"
+      ],
+      "@routes/*": [
+        "src/routes/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "@validators/*": [
+        "src/validators/*"
+      ],
+      "@lib/*": [
+        "src/lib/*"
+      ],
+      "@types/*": [
+        "src/types/*"
+      ]
     }
   },
-  "include": ["src/**/*", "prisma/seed/**/*"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "prisma/seed/**/*"
+  ]
 }
